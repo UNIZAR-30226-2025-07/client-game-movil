@@ -1,0 +1,59 @@
+# Archivos específicos de Android Studio
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/.idea/gradle.xml
+/.idea/kotlinc.xml
+/.idea/misc.xml
+/.idea/compiler.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+
+# Archivos generados
+bin/
+gen/
+out/
+
+# Archivos de configuración local
+local.properties
+
+# Log Files
+*.log
+
+# Gradle
+.gradle/
+build/
+
+# APK
+*.apk
+*.aab
+*.ap_
+
+# Archivos de firma
+keystore.properties
+*.jks
+*.keystore
+
+# Archivos de Proguard
+proguard/
+
+# Carpeta de capturas de pantalla de test de instrumentación
+/fastlane/screenshots
+
+# Archivos Crashlytics
+crashlytics.properties
+com_crashlytics_export_strings.xml
+crashlytics-build.properties
+fabric.properties
+
+# Archivos específicos de Kotlin
+.kotlin/
