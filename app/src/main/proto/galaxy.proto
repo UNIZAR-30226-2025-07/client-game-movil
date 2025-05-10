@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package galaxy;
+
+message Vector2D {
+    uint32 X = 1;
+    uint32 Y = 2;
+}
+
+// Events
+
+enum EventType {
+    EvUnused = 0;
+    EvNewFood = 1;
+    EvNewPlayer = 2;
+    EvPlayerMove = 3;
+    EvPlayerGrow = 4;
+    EvDestroyFood = 5;
+    EvDestroyPlayer = 6;
+    EvJoin = 7;
+}
+
+message Event {
+    EventType eventType = 1;
+    oneof eventData {
+        NewPlayerEvent newPlayerEvent = 2;
+        NewFoodEvent newFoodEvent = 3;
+        PlayerMoveEvent playerMoveEvent = 4;
+        PlayerGrowEvent playerGrowEvent = 5;
+        DestroyFoodEvent destroyFoodEvent = 6;
+        DestroyPlayerEvent destroyPlayerEvent = 7;
+        JoinEvent joinEvent = 8;
+    }
+}
+
+message NewPlayerEvent {
+    bytes playerID = 1;
+    Vector2D position = 2;
+    uint32 radius = 3;
+    uint32 color = 4;
+}
+
+message JoinEvent {
+    bytes playerID = 1;
+    Vector2D position = 2;
+    uint32 radius = 3;
+    uint32 color = 4;
+}
+
+message NewFoodEvent {
+    Vector2D position = 1;
+    uint32 color = 2;
+}
+
+message PlayerMoveEvent {
+    bytes playerID = 1;
+    Vector2D position = 2;
+}
+
+message PlayerGrowEvent {
+    bytes playerID = 1;
+    uint32 radius = 2;
+}
+
+message DestroyFoodEvent { Vector2D position = 1; }
+
+message DestroyPlayerEvent { bytes playerID = 1; }
+
+// Operations
+
+enum OperationType {
+    OpUnused = 0;
+    OpJoin = 1;
+    OpLeave = 2;
+    OpMove = 3;
+    OpEatPlayer = 4;
+    OpEatFood = 5;
+}
+
+message Operation {
+    OperationType operationType = 2;
+    oneof operationData {
+        JoinOperation joinOperation = 3;
+        LeaveOperation leaveOperation = 4;
+        MoveOperation moveOperation = 5;
+        EatPlayerOperation eatPlayerOperation = 6;
+        EatFoodOperation eatFoodOperation = 7;
+    }
+}
+
+message JoinOperation {
+    string username = 1;
+    uint32 color = 2;
+}
+
+message LeaveOperation {}
+
+message MoveOperation { Vector2D position = 1; }
+
+message EatPlayerOperation {
+    bytes playerEaten = 1;
+    uint32 newRadius = 2;
+}
+
+message EatFoodOperation {
+    Vector2D foodPosition = 1;
+    uint32 newRadius = 2;
+}

@@ -1,88 +1,78 @@
 package eina.unizar.cliente_movil.networking
 
 import android.util.Log
-import com.google.gson.Gson
-import com.google.gson.JsonObject
-import org.java_websocket.client.WebSocketClient
-import org.java_websocket.handshake.ServerHandshake
-import java.net.URI
-import java.util.concurrent.ConcurrentHashMap
+import org.json.JSONObject
+import okhttp3.*
+import galaxy.Galaxy.Operation
+import galaxy.Galaxy.OperationType
+import galaxy.Galaxy.MoveOperation
+import galaxy.Galaxy.Vector2D
+import okio.ByteString
 
-class GameWebSocketClient(
-    serverUri: URI,
-    private val messageHandler: MessageHandler
-) : WebSocketClient(serverUri) {
+class WebSocketClient(private val serverUrl: String, private val listener: WebSocketListener) {
 
-    private val gson = Gson()
-    private val TAG = "GameWebSocketClient"
+    private var webSocket: WebSocket? = null
+    private val client = OkHttpClient()
 
-    override fun onOpen(handshakedata: ServerHandshake?) {
-        Log.d(TAG, "Conexión establecida con el servidor")
-        messageHandler.onConnectionEstablished()
+    fun connect() {
+        val request = Request.Builder()
+            .url(serverUrl)
+            .build()
+
+        webSocket = client.newWebSocket(request, listener)
+        // Nota: OkHttp lanza los callbacks en hilos del dispatcher interno
+        Log.d(TAG, "WebSocket: conexión iniciada a $serverUrl")
     }
 
-    override fun onMessage(message: String?) {
-        message?.let {
-            try {
-                val jsonObject = gson.fromJson(it, JsonObject::class.java)
-                messageHandler.handleMessage(jsonObject)
-            } catch (e: Exception) {
-                Log.e(TAG, "Error al procesar mensaje: ${e.message}")
-            }
-        }
+    /** Envía el movimiento (x,y) serializado en JSON */
+    fun sendMovement(x: Float, y: Float) {
+        val moveOperation = Operation.newBuilder()
+            .setOperationType(OperationType.OpMove)
+            .setMoveOperation(
+                MoveOperation.newBuilder()
+                    .setPosition(
+                        Vector2D.newBuilder()
+                            .setX(x.toInt()) // Cambiar a float
+                            .setY(y.toInt()) // Cambiar a float
+                            .build()
+                    )
+                    .build()
+            )
+            .build()
+
+        val messageBytes = moveOperation.toByteArray()
+        val ok = webSocket?.send(ByteString.of(*messageBytes)) ?: false
+        if (!ok) Log.e(TAG, "Failed to send movement")
     }
 
-    override fun onClose(code: Int, reason: String?, remote: Boolean) {
-        Log.d(TAG, "Conexión cerrada: $reason (código: $code)")
-        messageHandler.onConnectionClosed(code, reason)
+
+    /** Emite petición de unirse al juego */
+    fun joinGame(userName: String) {
+        val randomColor = (0xFFFFFF and (Math.random() * 0xFFFFFF).toInt()) // Genera un color aleatorio
+        val joinOperation = Operation.newBuilder()
+            .setOperationType(OperationType.OpJoin)
+            .setJoinOperation(
+                galaxy.Galaxy.JoinOperation.newBuilder()
+                    .setUsername(userName)
+                    .setColor(randomColor) // Asigna el color generado
+                    .build()
+            )
+            .build()
+
+        val messageBytes = joinOperation.toByteArray()
+        val ok = webSocket?.send(ByteString.of(*messageBytes)) ?: false
+        if (!ok) Log.e(TAG, "Failed to send join operation")
     }
 
-    override fun onError(ex: Exception?) {
-        Log.e(TAG, "Error en la conexión: ${ex?.message}")
-        messageHandler.onError(ex)
+    /** Cierra la conexión limpiamente */
+    fun close() {
+        webSocket?.close(1000, "Client closing")
+        client.dispatcher.executorService.shutdown()
+        Log.d(TAG, "WebSocket: conexión cerrada")
     }
 
-    fun sendAction(action: String, data: Any? = null) {
-        val message = JsonObject().apply {
-            addProperty("action", action)
-            if (data != null) {
-                when (data) {
-                    is String -> addProperty("data", data)
-                    is Number -> addProperty("data", data)
-                    is Boolean -> addProperty("data", data)
-                    else -> add("data", gson.toJsonTree(data))
-                }
-            }
-        }
 
-        val messageStr = gson.toJson(message)
-        send(messageStr)
-    }
-
-    // Métodos específicos del juego que envían acciones al servidor
-    fun joinGame(username: String, roomId: String? = null) {
-        val data = JsonObject().apply {
-            addProperty("username", username)
-            if (roomId != null) {
-                addProperty("roomId", roomId)
-            }
-        }
-        sendAction("join", data)
-    }
-
-    fun updateDirection(directionX: Float, directionY: Float) {
-        val data = JsonObject().apply {
-            addProperty("dx", directionX)
-            addProperty("dy", directionY)
-        }
-        sendAction("move", data)
-    }
-
-    fun split() {
-        sendAction("split")
-    }
-
-    fun eject() {
-        sendAction("eject")
+    companion object {
+        private const val TAG = "WebSocketClient"
     }
 }
