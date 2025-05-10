@@ -30,6 +30,8 @@ import eina.unizar.cliente_movil.utils.ColorUtils
 import org.json.JSONArray
 import kotlin.text.toDouble
 import eina.unizar.cliente_movil.utils.Constants
+import kotlin.div
+import kotlin.times
 
 
 class GameActivity : AppCompatActivity(), GameView.MoveListener {
@@ -328,6 +330,18 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
         runOnUiThread {
             gameView.updatePlayers(player)
             gameView.invalidate()
+        }
+    }
+
+    fun sendEatFood(food: Food) {
+        val player = gameView.currentPlayerId?.let { gameView.getPlayer(it) }
+        if (player != null) {
+            // Suma de áreas: área total = área jugador + área comida
+            val playerArea = Math.PI * player.radius * player.radius
+            val foodArea = Math.PI * food.radius * food.radius
+            val newArea = playerArea + foodArea
+            val newRadius = Math.sqrt(newArea / Math.PI).toFloat()
+            webSocketClient.sendEatFood(food.x, food.y, newRadius)
         }
     }
 
