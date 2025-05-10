@@ -17,6 +17,11 @@ import kotlin.math.min
 import kotlin.math.sqrt
 import android.util.Log
 import eina.unizar.cliente_movil.utils.ColorUtils
+import eina.unizar.cliente_movil.utils.Constants
+import kotlin.div
+import kotlin.text.get
+import kotlin.text.toFloat
+import kotlin.times
 
 class GameView @JvmOverloads constructor(
     context: Context,
@@ -164,76 +169,62 @@ class GameView @JvmOverloads constructor(
                 val worldSize = gameState.getJSONObject("worldSize")
                 gameWidth = worldSize.getDouble("width").toFloat()
                 gameHeight = worldSize.getDouble("height").toFloat()
+                Log.d("GameView", "Tamaño del mapa actualizado: Width=$gameWidth, Height=$gameHeight")
             }
-
             // Update players
             if (gameState.has("players")) {
                 val playersArray = gameState.getJSONArray("players")
-                val currentPlayerIds = mutableSetOf<String>()
+                val updatedPlayers = mutableMapOf<String, Player>()
 
                 for (i in 0 until playersArray.length()) {
-                    val playerData = playersArray.getJSONObject(i)
-                    val id = playerData.getString("id")
-                    currentPlayerIds.add(id)
-
-                    val x = playerData.getDouble("x").toFloat()
-                    val y = playerData.getDouble("y").toFloat()
-                    val radius = playerData.getDouble("radius").toFloat()
-                    val color = playerData.optString("color", "#FF0000")
-                    val username = playerData.optString("username", "Player")
-                    val score = playerData.optInt("score", 0)
-
-                    if (players.containsKey(id)) {
-                        // Update existing player
-                        players[id]?.apply {
-                            this.x = x
-                            this.y = y
-                            this.radius = radius
-                            this.color = Color.parseColor(color)
-                            this.username = username
-                            this.score = score
-                        }
-                    } else {
-                        // Add new player
-                        players[id] = Player(
-                            id = id,
-                            x = x,
-                            y = y,
-                            radius = radius,
-                            color = Color.parseColor(color),
-                            username = username,
-                            score = score
-                        )
-                    }
+                    val playerJson = playersArray.getJSONObject(i)
+                    val playerId = playerJson.getString("id")
+                    val player = Player(
+                        id = playerId,
+                        x = playerJson.getDouble("x").toFloat(),
+                        y = playerJson.getDouble("y").toFloat(),
+                        radius = playerJson.getDouble("radius").toFloat(),
+                        color = Color.parseColor(playerJson.getString("color")),
+                        username = playerJson.optString("username", "Player"),
+                        score = playerJson.optInt("score", 0)
+                    )
+                    updatedPlayers[playerId] = player
                 }
 
-                // Remove players not in the current update
-                val toRemove = players.keys.filter { it !in currentPlayerIds }
-                toRemove.forEach { players.remove(it) }
+                // Actualizar solo los jugadores necesarios
+                Log.d("GameView", "Jugadores antes de actualizar: ${players.keys}")
+                players.keys.retainAll(updatedPlayers.keys)
+                players.putAll(updatedPlayers)
             }
 
             // Update food
             if (gameState.has("food")) {
                 val foodArray = gameState.getJSONArray("food")
-                val updatedFood = mutableListOf<Food>()
+                val updatedFood = mutableMapOf<String, Food>()
 
                 for (i in 0 until foodArray.length()) {
-                    val foodData = foodArray.getJSONObject(i)
-                    val id = foodData.getString("id")
-                    val x = foodData.getDouble("x").toFloat()
-                    val y = foodData.getDouble("y").toFloat()
-                    val radius = foodData.getDouble("radius").toFloat()
-                    val color = ColorUtils.parseColor(foodData.optString("color", "#00FF00"))
-
-                    updatedFood.add(Food(id, x, y, radius, color))
+                    val foodJson = foodArray.getJSONObject(i)
+                    val foodId = foodJson.getString("id")
+                    val food = Food(
+                        id = foodId,
+                        x = foodJson.getDouble("x").toFloat(),
+                        y = foodJson.getDouble("y").toFloat(),
+                        radius = foodJson.getDouble("radius").toFloat(),
+                        color = Color.parseColor(foodJson.getString("color"))
+                    )
+                    updatedFood[foodId] = food
                 }
 
-                // Actualiza solo los elementos necesarios
-                foodItems.clear()
-                foodItems.addAll(updatedFood)
+                // Mantener los elementos existentes y agregar los nuevos
+                //foodItems.removeIf { it.id !in updatedFood.keys }
+                updatedFood.values.forEach { newFood ->
+                    //if (foodItems.none { it.id == newFood.id }) {
+                        foodItems.add(newFood)
+                    //}
+                }
             }
 
-            // Update camera position if current player exists
+            // Actualizar posición de la cámara
             updateCameraPosition()
 
             Log.d("GameView", "Jugadores: ${players.keys}, Comida: ${foodItems.size}")
@@ -242,16 +233,15 @@ class GameView @JvmOverloads constructor(
         }
     }
 
-    private fun updateCameraPosition() {
+    fun updateCameraPosition() {
         val player = currentPlayerId?.let { players[it] }
         if (player != null) {
-            // Center camera on the player
+            // Centrar la cámara en el jugador
             cameraX = player.x
             cameraY = player.y
 
-            // Calculate zoom based on player size
-            // Larger players see more of the map (zoom out)
-            scale = max(0.5f, min(1.5f, 30f / player.radius))
+            // Ajustar el zoom para que sea más cercano
+            scale = max(1f, min(2.5f, 50f / player.radius)) // Aumenta el zoom máximo
         }
     }
 
@@ -264,112 +254,92 @@ class GameView @JvmOverloads constructor(
     }
 
     fun update() {
-        // Any additional updates that need to happen each frame
+        // Movimiento suave de los jugadores hacia su posición objetivo
+        for (player in players.values) {
+            val dx = player.targetX - player.x
+            val dy = player.targetY - player.y
+            val distance = sqrt(dx * dx + dy * dy)
+            if (distance > 1f) {
+                val speed = max(2f, 12f - player.radius / 10f)
+                val step = min(speed, distance)
+                player.x += dx / distance * step
+                player.y += dy / distance * step
+            } else {
+                player.x = player.targetX
+                player.y = player.targetY
+            }
+        }
+        // Centrar la cámara en el jugador actual en cada frame
+        updateCameraPosition()
     }
 
     fun render(canvas: Canvas) {
         if (canvas != null) {
-            // Clear canvas
+            // Limpiar el canvas
             canvas.drawColor(Color.BLACK)
 
-            // Save the current canvas state
+            // Guardar el estado actual del canvas
             canvas.save()
 
-            // Calculate viewport dimensions
-            val viewportWidth = width / scale
-            val viewportHeight = height / scale
-
-            // Translate canvas to player center
+            // Traducir el canvas al centro del jugador
             canvas.translate(
                 width / 2f - cameraX * scale,
                 height / 2f - cameraY * scale
             )
 
-            // Scale canvas according to zoom level
+            // Escalar el canvas según el nivel de zoom
             canvas.scale(scale, scale)
 
-            // Draw game boundaries
+            // Dibujar los límites del mapa
             val boundaryPaint = Paint().apply {
-                color = Color.DKGRAY
+                color = Color.GRAY
                 style = Paint.Style.STROKE
-                strokeWidth = 10f
+                strokeWidth = 5f
             }
-            canvas.drawRect(0f, 0f, gameWidth, gameHeight, boundaryPaint)
+            canvas.drawRect(0f, 0f, Constants.DEFAULT_WORLD_WIDTH.toFloat(), Constants.DEFAULT_WORLD_HEIGHT.toFloat(), boundaryPaint)
 
-            // Draw grid lines
-            val gridPaint = Paint().apply {
-                color = Color.DKGRAY
-                strokeWidth = 2f
-                alpha = 100
-            }
-
-            val gridSize = 200f
-            val startX = (cameraX - viewportWidth / 2).coerceAtLeast(0f)
-            val endX = (cameraX + viewportWidth / 2).coerceAtMost(gameWidth)
-            val startY = (cameraY - viewportHeight / 2).coerceAtLeast(0f)
-            val endY = (cameraY + viewportHeight / 2).coerceAtMost(gameHeight)
-
-            var x = (startX / gridSize).toInt() * gridSize
-            while (x <= endX) {
-                canvas.drawLine(x, startY, x, endY, gridPaint)
-                x += gridSize
-            }
-
-            var y = (startY / gridSize).toInt() * gridSize
-            while (y <= endY) {
-                canvas.drawLine(startX, y, endX, y, gridPaint)
-                y += gridSize
-            }
-
-            // Draw food
+            // Dibujar la comida
             for (food in foodItems) {
                 foodPaint.color = food.color
                 canvas.drawCircle(food.x, food.y, food.radius, foodPaint)
             }
 
-            // Draw players
+            // Dibujar los jugadores
             for ((id, player) in players) {
                 playersPaint.color = player.color
                 canvas.drawCircle(player.x, player.y, player.radius, playersPaint)
 
-                // Draw player name and score
-                val text = "${player.username} (${player.score})"
-                canvas.drawText(text, player.x, player.y - player.radius - 10, textPaint)
-
-                // Highlight current player
-                if (id == currentPlayerId) {
-                    val highlightPaint = Paint().apply {
-                        color = Color.WHITE
-                        style = Paint.Style.STROKE
-                        strokeWidth = 3f
-                    }
-                    canvas.drawCircle(player.x, player.y, player.radius + 2, highlightPaint)
-                }
+                // Dibujar el nombre del jugador
+                canvas.drawText(
+                    player.username,
+                    player.x,
+                    player.y - player.radius - 10,
+                    textPaint
+                )
             }
 
-            // Restore canvas state
+            // Restaurar el estado del canvas
             canvas.restore()
 
-            // Draw UI elements in screen space if needed
-            // For example, score display, joystick, etc.
+            // Dibujar elementos de la interfaz en el espacio de la pantalla
             if (joystickPressed) {
                 val joystickPaint = Paint().apply {
                     color = Color.WHITE
-                    alpha = 100
+                    style = Paint.Style.STROKE
+                    strokeWidth = 3f
                 }
                 canvas.drawCircle(joystickX, joystickY, 50f, joystickPaint)
             }
 
-            // Draw score for current player
+            // Dibujar la puntuación del jugador actual
             val currentPlayer = currentPlayerId?.let { players[it] }
             if (currentPlayer != null) {
-                val scoreText = "Score: ${currentPlayer.score}"
-                val scorePaint = Paint().apply {
-                    color = Color.WHITE
-                    textSize = 40f
-                    textAlign = Paint.Align.LEFT
-                }
-                canvas.drawText(scoreText, 20f, 60f, scorePaint)
+                canvas.drawText(
+                    "Puntuación: ${currentPlayer.score}",
+                    width / 2f,
+                    50f,
+                    textPaint
+                )
             }
         }
     }

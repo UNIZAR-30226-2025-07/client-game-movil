@@ -6,8 +6,8 @@ object Constants {
     // const val SERVER_URL = "ws://192.168.1.x:8080/ws"  // Para dispositivo físico en red local
 
     // Constantes del juego
-    const val DEFAULT_WORLD_WIDTH = 5000
-    const val DEFAULT_WORLD_HEIGHT = 5000
+    const val DEFAULT_WORLD_WIDTH = 10000
+    const val DEFAULT_WORLD_HEIGHT = 10000
     const val DEFAULT_PLAYER_RADIUS = 32f
 
     // Colores disponibles para jugadores
