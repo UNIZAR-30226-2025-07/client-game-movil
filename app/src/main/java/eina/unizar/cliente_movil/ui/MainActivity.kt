@@ -29,6 +29,7 @@ import eina.unizar.cliente_movil.model.Player
 import eina.unizar.cliente_movil.utils.ColorUtils
 import org.json.JSONArray
 import kotlin.text.toDouble
+import eina.unizar.cliente_movil.utils.Constants
 
 
 class GameActivity : AppCompatActivity(), GameView.MoveListener {
@@ -177,6 +178,7 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
 
     /** Desde GameView.MoveListener: enviamos movimiento */
     override fun onMove(directionX: Float, directionY: Float) {
+        Log.d(TAG, "Movimiento enviado: X=$directionX, Y=$directionY")
         if (directionX != 0f || directionY != 0f) {
             webSocketClient.sendMovement(directionX, directionY)
         }
@@ -249,13 +251,27 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
     private fun handlePlayerMove(event: PlayerMoveEvent) {
         val playerId = event.playerID.toStringUtf8()
         val player = gameView.getPlayer(playerId)
-        //val player = gameView.players[playerId]
+
         if (player != null) {
-            player.x = event.position.x.toFloat()
-            player.y = event.position.y.toFloat()
-            runOnUiThread {
-                gameView.invalidate() // Redibuja el juego
+            // Actualizar las coordenadas del jugador
+            player.targetX = event.position.x.toFloat()
+            player.targetY = event.position.y.toFloat()
+
+            // Validar que las coordenadas estén dentro de los límites del mapa
+            if (player.x < 0 || player.x > Constants.DEFAULT_WORLD_WIDTH || player.y < 0 || player.y > Constants.DEFAULT_WORLD_HEIGHT) {
+                Log.e(TAG, "Jugador fuera de los límites: ID=$playerId, X=${player.x}, Y=${player.y}")
             }
+
+            // Si es el jugador actual, actualizar la cámara
+            if (playerId == gameView.currentPlayerId) {
+                gameView.updateCameraPosition()
+            }
+
+            runOnUiThread {
+                gameView.invalidate() // Redibujar el juego
+            }
+        } else {
+            Log.e(TAG, "Jugador no encontrado: ID=$playerId")
         }
     }
 
@@ -290,20 +306,28 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
     }
 
     private fun handleJoin(event: JoinEvent) {
+        val playerId = event.playerID.toStringUtf8()
+        val spawnX = event.position.x.toFloat()
+        val spawnY = event.position.y.toFloat()
+
+        // Validar que las coordenadas estén dentro de los límites del mapa
+        if (spawnX < 0 || spawnX > Constants.DEFAULT_WORLD_WIDTH || spawnY < 0 || spawnY > Constants.DEFAULT_WORLD_HEIGHT) {
+            Log.e(TAG, "Coordenadas de spawn fuera de los límites: X=$spawnX, Y=$spawnY")
+        }
+
+        gameView.updateCurrentPlayerId(playerId)
         val player = Player(
-            id = event.playerID.toStringUtf8(),
-            x = event.position.x.toFloat(),
-            y = event.position.y.toFloat(),
+            id = playerId,
+            x = spawnX,
+            y = spawnY,
             radius = event.radius.toFloat(),
             color = event.color.toInt(),
-            username = "Player", // Ajustar si hay un campo para el nombre
-            score = 0 // Ajustar si hay un campo para la puntuación
+            username = "Player",
+            score = 0
         )
         runOnUiThread {
-            gameView.updateCurrentPlayerId(player.id)
             gameView.updatePlayers(player)
-            //gameView.players[player.id] = player
-            gameView.invalidate() // Redibuja el juego
+            gameView.invalidate()
         }
     }
 

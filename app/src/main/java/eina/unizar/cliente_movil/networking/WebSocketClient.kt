@@ -1,6 +1,7 @@
 package eina.unizar.cliente_movil.networking
 
 import android.util.Log
+import eina.unizar.cliente_movil.utils.Constants
 import org.json.JSONObject
 import okhttp3.*
 import galaxy.Galaxy.Operation
@@ -26,14 +27,24 @@ class WebSocketClient(private val serverUrl: String, private val listener: WebSo
 
     /** Envía el movimiento (x,y) serializado en JSON */
     fun sendMovement(x: Float, y: Float) {
+        if (webSocket == null) {
+            Log.e(TAG, "WebSocket no conectado. No se puede enviar movimiento.")
+            return
+        }
+
+        val scaledX = ((x + 1) / 2 * Constants.DEFAULT_WORLD_WIDTH).toInt()
+        val scaledY = ((y + 1) / 2 * Constants.DEFAULT_WORLD_HEIGHT).toInt()
+
+        Log.d(TAG, "Enviando movimiento escalado: X=$scaledX, Y=$scaledY")
+
         val moveOperation = Operation.newBuilder()
             .setOperationType(OperationType.OpMove)
             .setMoveOperation(
                 MoveOperation.newBuilder()
                     .setPosition(
                         Vector2D.newBuilder()
-                            .setX(x.toInt()) // Cambiar a float
-                            .setY(y.toInt()) // Cambiar a float
+                            .setX(scaledX)
+                            .setY(scaledY)
                             .build()
                     )
                     .build()
@@ -42,7 +53,7 @@ class WebSocketClient(private val serverUrl: String, private val listener: WebSo
 
         val messageBytes = moveOperation.toByteArray()
         val ok = webSocket?.send(ByteString.of(*messageBytes)) ?: false
-        if (!ok) Log.e(TAG, "Failed to send movement")
+        if (!ok) Log.e(TAG, "Error al enviar movimiento")
     }
 
 
