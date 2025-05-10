@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AgarClone</string>
-    <string name="welcome_message">Bienvenido a AgarClone</string>
-    <string name="start_game">Iniciar Juego</string>
-    <string name="settings">Configuración</string>
-    <string name="exit">Salir</string>
+    <string name="app_name">Agar.io Clone</string>
+    <string name="reconnect">Reconectar</string>
+    <string name="play">Jugar</string>
+    <string name="server_url">URL del servidor</string>
+    <string name="username">Nombre de usuario</string>
 </resources>

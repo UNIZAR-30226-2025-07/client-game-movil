@@ -20,4 +20,11 @@
         <item name="windowNoTitle">true</item>
         <item name="android:windowFullscreen">true</item>
     </style>
+
+    <style name="Theme.AppCompat.Light" parent="Theme.AppCompat.Light.DarkActionBar">
+        <!-- Personaliza los colores aquí -->
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+    </style>
 </resources>

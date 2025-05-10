@@ -2,10 +2,10 @@ package eina.unizar.cliente_movil.model
 
 data class Player(
     val id: String,
-    val username: String,
-    val x: Float,
-    val y: Float,
-    val radius: Float,
-    val color: String,
-    val isSelf: Boolean = false
+    var x: Float,
+    var y: Float,
+    var radius: Float,
+    var color: Int,
+    var username: String,
+    var score: Int
 )
