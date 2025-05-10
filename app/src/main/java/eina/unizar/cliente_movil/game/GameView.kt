@@ -253,6 +253,8 @@ class GameView @JvmOverloads constructor(
         moveListener = listener
     }
 
+    // Dentro de GameView.kt
+
     fun update() {
         // Movimiento suave de los jugadores hacia su posición objetivo
         for (player in players.values) {
@@ -271,6 +273,25 @@ class GameView @JvmOverloads constructor(
         }
         // Centrar la cámara en el jugador actual en cada frame
         updateCameraPosition()
+
+        // --- NUEVO: detectar colisión con comida ---
+        val currentPlayer = currentPlayerId?.let { players[it] }
+        if (currentPlayer != null) {
+            val iterator = foodItems.iterator()
+            while (iterator.hasNext()) {
+                val food = iterator.next()
+                val dist = sqrt((currentPlayer.x - food.x) * (currentPlayer.x - food.x) +
+                        (currentPlayer.y - food.y) * (currentPlayer.y - food.y))
+                if (dist < currentPlayer.radius + food.radius) {
+                    // Enviar petición de comer comida al servidor
+                    (context as? eina.unizar.cliente_movil.ui.GameActivity)?.let { activity ->
+                        activity.sendEatFood(food)
+                    }
+                    // Opcional: puedes eliminar la comida localmente si quieres feedback inmediato
+                    // iterator.remove()
+                }
+            }
+        }
     }
 
     fun render(canvas: Canvas) {
