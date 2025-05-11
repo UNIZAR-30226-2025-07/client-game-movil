@@ -1,9 +1,12 @@
 package eina.unizar.cliente_movil.game
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.SurfaceHolder
@@ -27,6 +30,8 @@ import kotlin.text.get
 import kotlin.text.set
 import kotlin.text.toFloat
 import kotlin.times
+import android.graphics.BitmapFactory
+import kotlin.text.get
 
 class GameView @JvmOverloads constructor(
     context: Context,
@@ -94,6 +99,8 @@ class GameView @JvmOverloads constructor(
 
         // Setup surface holder
         holder.addCallback(this)
+        holder.setFormat(PixelFormat.OPAQUE)
+        setZOrderOnTop(false)
 
         // Create game thread
         gameThread = GameThread(holder, this)
@@ -145,6 +152,21 @@ class GameView @JvmOverloads constructor(
         return super.onTouchEvent(event)
     }
 
+    private val skinBitmaps = mutableMapOf<String, Bitmap>()
+
+    private fun getSkinBitmap(skinName: String): Bitmap? {
+        return skinBitmaps[skinName] ?: run {
+            val resId = resources.getIdentifier(skinName, "drawable", context.packageName)
+            if (resId != 0) {
+                val bmp = BitmapFactory.decodeResource(resources, resId)
+                if (bmp != null) skinBitmaps[skinName] = bmp
+                bmp
+            } else {
+                null
+            }
+        }
+    }
+
     private fun calculateMovement() {
         val player = currentPlayerId?.let { players[it] } ?: return
         val centerX = width / 2f
@@ -177,12 +199,14 @@ class GameView @JvmOverloads constructor(
                 for (i in 0 until playersArray.length()) {
                     val playerJson = playersArray.getJSONObject(i)
                     val playerId = playerJson.getString("id")
+                    val existingSkin = players[playerId]?.skinName
                     val player = Player(
                         id = playerId,
                         x = playerJson.getDouble("x").toFloat(),
                         y = playerJson.getDouble("y").toFloat(),
                         radius = playerJson.getDouble("radius").toFloat(),
                         color = Color.parseColor(playerJson.getString("color")),
+                        skinName = existingSkin,
                         username = playerJson.optString("username", "Player"),
                         score = playerJson.optInt("score", 0)
                     )
@@ -356,9 +380,18 @@ class GameView @JvmOverloads constructor(
 
             // Dibujar los jugadores
             for ((id, player) in players) {
-                playersPaint.color = player.color
-                canvas.drawCircle(player.x, player.y, player.radius, playersPaint)
-
+                val skinBitmap = player.skinName?.let { getSkinBitmap(it) }
+                if (skinBitmap != null) {
+                    val left = player.x - player.radius
+                    val top = player.y - player.radius
+                    val right = player.x + player.radius
+                    val bottom = player.y + player.radius
+                    val rect = RectF(left, top, right, bottom)
+                    canvas.drawBitmap(skinBitmap, null, rect, null)
+                } else {
+                    playersPaint.color = player.color
+                    canvas.drawCircle(player.x, player.y, player.radius, playersPaint)
+                }
                 // Dibujar el nombre del jugador
                 if (id == currentPlayerId) {
                     textPaint.textSize = 28f
@@ -419,6 +452,57 @@ class GameView @JvmOverloads constructor(
                     padding + 75f,
                     textPaint
                 )
+            }
+
+            val topPlayers = players.values.sortedByDescending { it.radius }.take(10)
+            if (topPlayers.isNotEmpty()) {
+                val leaderboardPaint = Paint().apply {
+                    color = Color.argb(180, 30, 30, 30)
+                    style = Paint.Style.FILL
+                }
+                val leaderboardTextPaint = Paint().apply {
+                    color = Color.WHITE
+                    textSize = 36f
+                    textAlign = Paint.Align.LEFT
+                    isAntiAlias = true
+                }
+                val padding = 32f
+                val rowHeight = 48f
+                val rectWidth = 420f
+                val rectHeight = rowHeight * (topPlayers.size + 1) + padding
+
+                // Dibuja el fondo del ranking
+                canvas.drawRoundRect(
+                    width - rectWidth - padding,
+                    padding,
+                    width - padding,
+                    padding + rectHeight,
+                    30f,
+                    30f,
+                    leaderboardPaint
+                )
+
+                // Título
+                canvas.drawText(
+                    "Clasificación",
+                    width - rectWidth,
+                    padding + rowHeight,
+                    leaderboardTextPaint
+                )
+
+                // Lista de jugadores
+                for ((index, player) in topPlayers.withIndex()) {
+                    val y = padding + rowHeight * (index + 2)
+                    val name = if (player.username.length > 12) player.username.take(12) + "…" else player.username
+                    val text = "${index + 1}. $name (${player.score})"
+                    leaderboardTextPaint.color = if (player.id == currentPlayerId) Color.YELLOW else Color.WHITE
+                    canvas.drawText(
+                        text,
+                        width - rectWidth,
+                        y,
+                        leaderboardTextPaint
+                    )
+                }
             }
         }
     }

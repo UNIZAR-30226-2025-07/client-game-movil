@@ -46,6 +46,7 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
     private var userId: String = ""
     private var userName: String = ""
     private var serverUrl: String = ""
+    private var skinName: String? = null
 
     // Último estado completo recibido
     private var gameState: JSONObject? = null
@@ -59,6 +60,7 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
             userId    = b.getString("userId", "")
             userName  = b.getString("userName", "")
             serverUrl = b.getString("serverUrl", "ws://10.0.2.2:8080/ws")
+            skinName = b.getString("skinName", null)
         }
 
         if (userId.isEmpty() || userName.isEmpty() || serverUrl.isEmpty()) {
@@ -206,6 +208,7 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
             y = event.position.y.toFloat(),
             radius = event.radius.toFloat(),
             color = rgbToArgb(event.color),
+            skinName = skinName,
             username = userName,
             score = 0
         )
@@ -321,6 +324,7 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
             y = spawnY,
             radius = event.radius.toFloat(),
             color = rgbToArgb(event.color),
+            skinName = skinName,
             username = userName,
             score = 0
         )
