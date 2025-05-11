@@ -30,7 +30,10 @@ import eina.unizar.cliente_movil.utils.ColorUtils
 import org.json.JSONArray
 import kotlin.text.toDouble
 import eina.unizar.cliente_movil.utils.Constants
+import kotlin.collections.plusAssign
 import kotlin.div
+import kotlin.text.toFloat
+import kotlin.text.toInt
 import kotlin.times
 
 
@@ -191,28 +194,24 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
         webSocketClient.close()
     }
 
+    // Utilidad para convertir color RGB a ARGB (opacidad completa)
+    private fun rgbToArgb(rgb: Int): Int {
+        return 0xFF000000.toInt() or (rgb and 0x00FFFFFF)
+    }
+
     private fun handleNewPlayer(event: NewPlayerEvent) {
         val player = Player(
             id = event.playerID.toStringUtf8(),
             x = event.position.x.toFloat(),
             y = event.position.y.toFloat(),
             radius = event.radius.toFloat(),
-            color = event.color.toInt(),
-            username = "Player", // Ajustar si hay un campo para el nombre
+            color = rgbToArgb(event.color),
+            username = userName,
             score = 0
         )
         runOnUiThread {
-            gameView.updateGameState(JSONObject().apply {
-                put("players", JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("id", player.id)
-                        put("x", player.x.toDouble())
-                        put("y", player.y.toDouble())
-                        put("radius", player.radius.toDouble())
-                        put("color", "#${Integer.toHexString(player.color)}")
-                    })
-                })
-            })
+            gameView.updatePlayers(player)
+            gameView.invalidate()
         }
     }
 
@@ -304,6 +303,9 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
         //gameView.players.remove(playerId)
         runOnUiThread {
             gameView.invalidate() // Redibuja el juego
+            if (playerId == gameView.currentPlayerId) {
+                onPlayerDied()
+            }
         }
     }
 
@@ -312,19 +314,14 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
         val spawnX = event.position.x.toFloat()
         val spawnY = event.position.y.toFloat()
 
-        // Validar que las coordenadas estén dentro de los límites del mapa
-        if (spawnX < 0 || spawnX > Constants.DEFAULT_WORLD_WIDTH || spawnY < 0 || spawnY > Constants.DEFAULT_WORLD_HEIGHT) {
-            Log.e(TAG, "Coordenadas de spawn fuera de los límites: X=$spawnX, Y=$spawnY")
-        }
-
         gameView.updateCurrentPlayerId(playerId)
         val player = Player(
             id = playerId,
             x = spawnX,
             y = spawnY,
             radius = event.radius.toFloat(),
-            color = event.color.toInt(),
-            username = "Player",
+            color = rgbToArgb(event.color),
+            username = userName,
             score = 0
         )
         runOnUiThread {
@@ -342,6 +339,20 @@ class GameActivity : AppCompatActivity(), GameView.MoveListener {
             val newArea = playerArea + foodArea
             val newRadius = Math.sqrt(newArea / Math.PI).toFloat()
             webSocketClient.sendEatFood(food.x, food.y, newRadius)
+            player.score += 1
+        }
+    }
+
+    fun sendEatPlayer(other: Player) {
+        val player = gameView.currentPlayerId?.let { gameView.getPlayer(it) }
+        if (player != null) {
+            // Suma de áreas: área total = área jugador + área del otro jugador
+            val playerArea = Math.PI * player.radius * player.radius
+            val otherArea = Math.PI * other.radius * other.radius
+            val newArea = playerArea + otherArea
+            val newRadius = Math.sqrt(newArea / Math.PI).toFloat()
+            webSocketClient.sendEatPlayer(other.id, newRadius)
+            player.score += 1
         }
     }
 

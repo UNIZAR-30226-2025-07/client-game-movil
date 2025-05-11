@@ -18,8 +18,13 @@ import kotlin.math.sqrt
 import android.util.Log
 import eina.unizar.cliente_movil.utils.ColorUtils
 import eina.unizar.cliente_movil.utils.Constants
+import kotlin.collections.plusAssign
+import kotlin.compareTo
 import kotlin.div
+import kotlin.text.clear
+import kotlin.text.compareTo
 import kotlin.text.get
+import kotlin.text.set
 import kotlin.text.toFloat
 import kotlin.times
 
@@ -49,6 +54,9 @@ class GameView @JvmOverloads constructor(
     private var joystickPressed = false
     private var moveListener: MoveListener? = null
 
+    private var moveDirX: Float = 0f
+    private var moveDirY: Float = 0f
+
     public var currentPlayerId: String? = null
         private set
 
@@ -66,6 +74,13 @@ class GameView @JvmOverloads constructor(
 
     fun removeIfFood(id: String){
         foodItems.removeIf { it.id == id }
+    }
+
+    fun setPlayers(playersList: List<Player>) {
+        players.clear()
+        for (player in playersList) {
+            players[player.id] = player
+        }
     }
 
     init {
@@ -112,24 +127,17 @@ class GameView @JvmOverloads constructor(
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
                 joystickPressed = true
                 joystickX = event.x
                 joystickY = event.y
                 calculateMovement()
                 return true
             }
-            MotionEvent.ACTION_MOVE -> {
-                if (joystickPressed) {
-                    joystickX = event.x
-                    joystickY = event.y
-                    calculateMovement()
-                    return true
-                }
-            }
             MotionEvent.ACTION_UP -> {
                 joystickPressed = false
-                // Stop movement when touch is released
+                moveDirX = 0f
+                moveDirY = 0f
                 moveListener?.onMove(0f, 0f)
                 return true
             }
@@ -139,25 +147,15 @@ class GameView @JvmOverloads constructor(
 
     private fun calculateMovement() {
         val player = currentPlayerId?.let { players[it] } ?: return
-
-        // Calculate center of screen
         val centerX = width / 2f
         val centerY = height / 2f
-
-        // Calculate direction vector
         val dirX = joystickX - centerX
         val dirY = joystickY - centerY
-
-        // Calculate distance from center
         val distance = sqrt(dirX * dirX + dirY * dirY)
-
-        if (distance > 10) { // Small threshold to prevent tiny movements
-            // Normalize the direction
-            val normalizedX = dirX / distance
-            val normalizedY = dirY / distance
-
-            // Send movement update to listener
-            moveListener?.onMove(normalizedX, normalizedY)
+        if (distance > 10) {
+            moveDirX = dirX / distance
+            moveDirY = dirY / distance
+            moveListener?.onMove(moveDirX, moveDirY)
         }
     }
 
@@ -256,25 +254,44 @@ class GameView @JvmOverloads constructor(
     // Dentro de GameView.kt
 
     fun update() {
-        // Movimiento suave de los jugadores hacia su posición objetivo
-        for (player in players.values) {
-            val dx = player.targetX - player.x
-            val dy = player.targetY - player.y
-            val distance = sqrt(dx * dx + dy * dy)
-            if (distance > 1f) {
-                val speed = max(2f, 12f - player.radius / 10f)
-                val step = min(speed, distance)
-                player.x += dx / distance * step
-                player.y += dy / distance * step
-            } else {
-                player.x = player.targetX
-                player.y = player.targetY
+        val player = currentPlayerId?.let { players[it] }
+        if (player != null) {
+            // Movimiento directo según la dirección del joystick
+            val baseSpeed = 12f
+            val minSpeed = 5f
+            val speed = max(minSpeed, baseSpeed - player.radius / 80f)
+            if (moveDirX != 0f || moveDirY != 0f) {
+                player.x += moveDirX * speed
+                player.y += moveDirY * speed
+                // Limita dentro del mundo
+                player.x = player.x.coerceIn(0f, Constants.DEFAULT_WORLD_WIDTH.toFloat())
+                player.y = player.y.coerceIn(0f, Constants.DEFAULT_WORLD_HEIGHT.toFloat())
             }
         }
-        // Centrar la cámara en el jugador actual en cada frame
+
+        // Actualiza los demás jugadores como antes
+        for ((id, p) in players) {
+            if (id != currentPlayerId) {
+                val dx = p.targetX - p.x
+                val dy = p.targetY - p.y
+                val distance = sqrt(dx * dx + dy * dy)
+                if (distance > 2f) {
+                    val baseSpeed = 10f
+                    val minSpeed = 4f
+                    val speed = max(minSpeed, baseSpeed - p.radius / 50f)
+                    val step = min(speed, distance)
+                    p.x += dx / distance * step
+                    p.y += dy / distance * step
+                } else {
+                    p.x = p.targetX
+                    p.y = p.targetY
+                }
+            }
+        }
+
         updateCameraPosition()
 
-        // --- NUEVO: detectar colisión con comida ---
+        // Colisión con comida (igual que antes)
         val currentPlayer = currentPlayerId?.let { players[it] }
         if (currentPlayer != null) {
             val iterator = foodItems.iterator()
@@ -283,12 +300,22 @@ class GameView @JvmOverloads constructor(
                 val dist = sqrt((currentPlayer.x - food.x) * (currentPlayer.x - food.x) +
                         (currentPlayer.y - food.y) * (currentPlayer.y - food.y))
                 if (dist < currentPlayer.radius + food.radius) {
-                    // Enviar petición de comer comida al servidor
                     (context as? eina.unizar.cliente_movil.ui.GameActivity)?.let { activity ->
                         activity.sendEatFood(food)
                     }
-                    // Opcional: puedes eliminar la comida localmente si quieres feedback inmediato
-                    // iterator.remove()
+                }
+            }
+
+            for ((id, other) in players) {
+                if (id != currentPlayerId) {
+                    val dist = sqrt((currentPlayer.x - other.x) * (currentPlayer.x - other.x) +
+                            (currentPlayer.y - other.y) * (currentPlayer.y - other.y))
+                    if (dist < currentPlayer.radius && currentPlayer.radius > other.radius * 1.1f) {
+                        // El jugador actual es suficientemente más grande
+                        (context as? eina.unizar.cliente_movil.ui.GameActivity)?.let { activity ->
+                            activity.sendEatPlayer(other)
+                        }
+                    }
                 }
             }
         }
@@ -296,6 +323,7 @@ class GameView @JvmOverloads constructor(
 
     fun render(canvas: Canvas) {
         if (canvas != null) {
+
             // Limpiar el canvas
             canvas.drawColor(Color.BLACK)
 
@@ -319,6 +347,7 @@ class GameView @JvmOverloads constructor(
             }
             canvas.drawRect(0f, 0f, Constants.DEFAULT_WORLD_WIDTH.toFloat(), Constants.DEFAULT_WORLD_HEIGHT.toFloat(), boundaryPaint)
 
+
             // Dibujar la comida
             for (food in foodItems) {
                 foodPaint.color = food.color
@@ -331,12 +360,16 @@ class GameView @JvmOverloads constructor(
                 canvas.drawCircle(player.x, player.y, player.radius, playersPaint)
 
                 // Dibujar el nombre del jugador
-                canvas.drawText(
-                    player.username,
-                    player.x,
-                    player.y - player.radius - 10,
-                    textPaint
-                )
+                if (id == currentPlayerId) {
+                    textPaint.textSize = 28f
+                    textPaint.textAlign = Paint.Align.CENTER
+                    canvas.drawText(
+                        player.username,
+                        player.x,
+                        player.y - player.radius - 10,
+                        textPaint
+                    )
+                }
             }
 
             // Restaurar el estado del canvas
@@ -355,15 +388,41 @@ class GameView @JvmOverloads constructor(
             // Dibujar la puntuación del jugador actual
             val currentPlayer = currentPlayerId?.let { players[it] }
             if (currentPlayer != null) {
+                // Configura el tamaño y estilo del texto
+                textPaint.textSize = 60f
+                textPaint.textAlign = Paint.Align.LEFT
+
+                val padding = 32f
+                val rectWidth = 350f
+                val rectHeight = 110f
+
+                // Dibuja el recuadro semitransparente
+                val bgPaint = Paint().apply {
+                    color = Color.argb(180, 30, 30, 30)
+                    style = Paint.Style.FILL
+                }
+                canvas.drawRoundRect(
+                    padding,
+                    padding,
+                    padding + rectWidth,
+                    padding + rectHeight,
+                    30f,
+                    30f,
+                    bgPaint
+                )
+
+                // Dibuja la puntuación encima del recuadro
+                textPaint.color = Color.WHITE
                 canvas.drawText(
                     "Puntuación: ${currentPlayer.score}",
-                    width / 2f,
-                    50f,
+                    padding + 32f,
+                    padding + 75f,
                     textPaint
                 )
             }
         }
     }
+
 
     interface MoveListener {
         fun onMove(directionX: Float, directionY: Float)
