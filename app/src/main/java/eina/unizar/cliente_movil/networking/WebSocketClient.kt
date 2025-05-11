@@ -56,8 +56,6 @@ class WebSocketClient(private val serverUrl: String, private val listener: WebSo
         if (!ok) Log.e(TAG, "Error al enviar movimiento")
     }
 
-    // En WebSocketClient.kt
-
     fun sendEatFood(x: Float, y: Float, radius: Float) {
         val eatFoodOperation = Operation.newBuilder()
             .setOperationType(OperationType.OpEatFood)
@@ -79,6 +77,21 @@ class WebSocketClient(private val serverUrl: String, private val listener: WebSo
         if (!ok) Log.e(TAG, "Error al enviar operación de comer comida")
     }
 
+    fun sendEatPlayer(playerEatenId: String, newRadius: Float) {
+        val eatPlayerOperation = galaxy.Galaxy.Operation.newBuilder()
+            .setOperationType(galaxy.Galaxy.OperationType.OpEatPlayer)
+            .setEatPlayerOperation(
+                galaxy.Galaxy.EatPlayerOperation.newBuilder()
+                    .setPlayerEaten(com.google.protobuf.ByteString.copyFromUtf8(playerEatenId))
+                    .setNewRadius(newRadius.toInt())
+                    .build()
+            )
+            .build()
+
+        val messageBytes = eatPlayerOperation.toByteArray()
+        val ok = webSocket?.send(okio.ByteString.of(*messageBytes)) ?: false
+        if (!ok) Log.e(TAG, "Error al enviar operación de comer jugador")
+    }
 
     /** Emite petición de unirse al juego */
     fun joinGame(userName: String) {
