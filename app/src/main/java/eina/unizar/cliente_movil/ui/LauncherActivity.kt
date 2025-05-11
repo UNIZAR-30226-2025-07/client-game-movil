@@ -46,11 +46,13 @@ class LauncherActivity : AppCompatActivity() {
 
         // Generar un ID de usuario simple para propósitos de prueba
         val userId = "user_${System.currentTimeMillis()}"
+        val skinName = "aspecto_basico"
 
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra("serverUrl", serverUrl)
             putExtra("userName", userName)
             putExtra("userId", userId)
+            putExtra("skinName", skinName)
         }
 
         startActivity(intent)
